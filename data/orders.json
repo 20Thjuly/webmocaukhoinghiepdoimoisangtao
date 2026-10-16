@@ -1,0 +1,57 @@
+[
+  {
+    "id": "50f29d4d",
+    "receivedAt": "2026-10-16T08:49:45.2460436Z",
+    "data": {
+      "orderCode": "ECO-889922",
+      "customer": {
+        "name": "Le Thi Hoa",
+        "phone": "0987112233",
+        "address": "45 Le Duan, Da Nang",
+        "payment": "cod",
+        "notes": "Giao buoi chieu"
+      },
+      "items": [
+        {
+          "productId": "combo-gia-dinh",
+          "name": "Combo Gia Dinh Tien Loi",
+          "variantLabel": "Set 25 mon gia dinh",
+          "price": 199000,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 199000,
+      "shippingFee": 25000,
+      "total": 224000,
+      "createdAt": "2026-10-16T15:47:00Z"
+    }
+  },
+  {
+    "id": "87dc3226",
+    "receivedAt": "2026-10-16T09:15:38.9813576Z",
+    "data": {
+      "orderCode": "ECO-822974",
+      "createdAt": "2026-10-16T09:15:38.853Z",
+      "customer": {
+        "name": "Quang",
+        "phone": "0388750916",
+        "address": "Hu\u1EBF",
+        "notes": "",
+        "payment": "cod"
+      },
+      "items": [
+        {
+          "productId": "chen-vuong-cham",
+          "name": "Ch\u00E9n Vu\u00F4ng Ch\u1EA5m Gia V\u1ECB",
+          "variantLabel": "Set 25 chi\u1EBFc",
+          "price": 60000,
+          "image": "assets/images/chen-vuong-cham.jpg",
+          "quantity": 1
+        }
+      ],
+      "subtotal": 60000,
+      "shippingFee": 25000,
+      "total": 85000
+    }
+  }
+]
