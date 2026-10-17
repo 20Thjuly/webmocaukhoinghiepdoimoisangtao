@@ -38,6 +38,16 @@ Website được thiết kế dựa trên cấu trúc trải nghiệm khách hà
 
 ---
 
+## 📋 Tài Liệu Kiến Trúc & Lộ Trình Doanh Nghiệp (Enterprise Roadmap)
+
+- **Báo cáo Audit toàn diện & Roadmap phát triển:** [ENTERPRISE_AUDIT_ROADMAP.md](ENTERPRISE_AUDIT_ROADMAP.md)
+  - Đánh giá mã nguồn, cơ sở dữ liệu và 14 nhóm chức năng.
+  - Phân loại rủi ro P0 - P3 (Kho, B2B, RDBMS, Phân quyền RBAC).
+  - Kiến trúc mục tiêu Modular Monolith & Sơ đồ dữ liệu ERD.
+  - Lộ trình 5 giai đoạn phát triển tích hợp AI.
+
+---
+
 ## 🚀 Hướng Dẫn Chạy Máy Chủ Nội Bộ (.NET 8.0)
 
 Để kích hoạt đầy đủ backend API (xác thực giá máy chủ, webhook VNPay IPN và lưu trữ file tập trung):
