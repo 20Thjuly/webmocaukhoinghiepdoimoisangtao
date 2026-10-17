@@ -231,3 +231,132 @@ public class ConfirmPaymentRequest
     public string? Note { get; set; }
     public string AdminName { get; set; } = "Admin";
 }
+
+// =========================================================================
+// SECURITY & RBAC ENTITIES
+// =========================================================================
+public class User
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Username { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string PasswordSalt { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = "Admin"; // Admin, Warehouse, Sales, Accountant
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAt { get; set; }
+}
+
+public class LoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public class LoginResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Token { get; set; }
+    public UserDto? User { get; set; }
+}
+
+public class UserDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+}
+
+// =========================================================================
+// B2B QUOTATION ENTITY
+// =========================================================================
+public class B2BQuote
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string FullName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string BusinessModel { get; set; } = string.Empty;
+    public string Demand { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string QuantityExpected { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
+    public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
+}
+
+// =========================================================================
+// INVENTORY & WAREHOUSE FOUNDATION ENTITIES (For Phase 2)
+// =========================================================================
+public class Warehouse
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string WarehouseCode { get; set; } = "WH-HUE";
+    public string WarehouseName { get; set; } = "Xưởng ép & Kho tổng ECO-ARECA Huế";
+    public string Address { get; set; } = "Xóm 2, Thanh Vinh, Dương Nỗ, TP Huế";
+    public bool IsActive { get; set; } = true;
+}
+
+public class ProductInventory
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string WarehouseId { get; set; } = "WH-HUE";
+    public string ProductId { get; set; } = string.Empty;
+    public string VariantLabel { get; set; } = string.Empty;
+    public int PhysicalQuantity { get; set; }
+    public int ReservedQuantity { get; set; }
+    public int AvailableQuantity => Math.Max(0, PhysicalQuantity - ReservedQuantity);
+    public int LowStockThreshold { get; set; } = 50;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class StockMovement
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string WarehouseId { get; set; } = "WH-HUE";
+    public string ProductId { get; set; } = string.Empty;
+    public string VariantLabel { get; set; } = string.Empty;
+    public string MovementType { get; set; } = "OrderSale"; // PurchaseReceive, OrderSale, Adjustment, Return
+    public int QuantityChanged { get; set; }
+    public int BalanceAfter { get; set; }
+    public string ReferenceCode { get; set; } = string.Empty; // OrderCode or PO Code
+    public string? Note { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string CreatedBy { get; set; } = "System";
+}
+
+// =========================================================================
+// STATE MACHINE VALIDATOR
+// =========================================================================
+public static class OrderStateMachine
+{
+    private static readonly Dictionary<OrderStatus, HashSet<OrderStatus>> AllowedOrderTransitions = new()
+    {
+        [OrderStatus.PendingConfirmation] = new() { OrderStatus.Confirmed, OrderStatus.Cancelled },
+        [OrderStatus.Confirmed] = new() { OrderStatus.Processing, OrderStatus.Cancelled },
+        [OrderStatus.Processing] = new() { OrderStatus.Shipping, OrderStatus.Cancelled },
+        [OrderStatus.Shipping] = new() { OrderStatus.Completed, OrderStatus.Cancelled },
+        [OrderStatus.Completed] = new(), // Final state
+        [OrderStatus.Cancelled] = new()  // Final state
+    };
+
+    public static bool CanTransition(OrderStatus current, OrderStatus target, out string reason)
+    {
+        if (current == target)
+        {
+            reason = "Trạng thái không thay đổi.";
+            return true;
+        }
+
+        if (AllowedOrderTransitions.TryGetValue(current, out var targets) && targets.Contains(target))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        reason = $"Không được phép chuyển trạng thái từ '{current}' sang '{target}'.";
+        return false;
+    }
+}

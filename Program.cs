@@ -1,6 +1,8 @@
 using System.Text.Json;
+using EcoAreca.Data;
 using EcoAreca.Models;
 using EcoAreca.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,9 +16,20 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
-// Configure services
+// Configure SQL Server Database Context
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? "Server=localhost;Database=EcoArecaDb;Integrated Security=True;TrustServerCertificate=True";
+
+builder.Services.AddDbContext<EcoArecaDbContext>(options =>
+{
+    options.UseSqlServer(connectionString);
+});
+
+// Configure Services
+builder.Services.AddScoped<IOrderRepository, SqlOrderRepository>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<DataMigrationService>();
 builder.Services.AddSingleton<ProductCatalogService>();
-builder.Services.AddSingleton<OrderRepository>();
 
 var vnpayConfig = builder.Configuration.GetSection("VNPay").Get<VNPayConfig>() ?? new VNPayConfig();
 builder.Services.AddSingleton(vnpayConfig);
@@ -39,9 +52,23 @@ fileServerOptions.DefaultFilesOptions.DefaultFileNames.Add("index.html");
 
 app.UseFileServer(fileServerOptions);
 
-// Injected dependencies
+// Startup Data Migration & Seed
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var migrationService = scope.ServiceProvider.GetRequiredService<DataMigrationService>();
+        var report = await migrationService.MigrateFromJsonToSqlServerAsync();
+        Console.WriteLine($"[Database] {report.Message} | Orders in SQL: {report.SqlOrdersCount} | Revenue: {report.SqlTotalAmountSum:N0} VND");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Database] Migration error: {ex.Message}");
+    }
+}
+
+// Config references
 var catalogService = app.Services.GetRequiredService<ProductCatalogService>();
-var orderRepo = app.Services.GetRequiredService<OrderRepository>();
 var vnpayService = app.Services.GetRequiredService<VNPayService>();
 var config = app.Configuration;
 
@@ -51,22 +78,62 @@ var bankId = config.GetValue<string>("BankTransfer:BankId") ?? "MB";
 var bankAccountNo = config.GetValue<string>("BankTransfer:AccountNumber") ?? "0388750916";
 var bankAccountName = config.GetValue<string>("BankTransfer:AccountName") ?? "NGUYEN DINH QUANG";
 
-// Middleware/Helper to verify Admin API Key
-bool IsAdminAuthorized(HttpContext ctx)
+// Security helper: checks Bearer token or legacy X-Admin-Key header (query string removed for security)
+bool IsAdminAuthorized(HttpContext ctx, AuthService authService)
 {
-    if (ctx.Request.Headers.TryGetValue("X-Admin-Key", out var headerVal) && headerVal == adminApiKey)
+    // 1. Check Bearer Token (Secure Session Token)
+    if (ctx.Request.Headers.TryGetValue("Authorization", out var authHeader))
     {
-        return true;
+        var token = authHeader.ToString().Trim();
+        if (authService.ValidateSessionToken(token, out _, out _))
+        {
+            return true;
+        }
     }
-    if (ctx.Request.Query.TryGetValue("adminKey", out var queryVal) && queryVal == adminApiKey)
+
+    // 2. Check X-Admin-Key header (Token or legacy key fallback)
+    if (ctx.Request.Headers.TryGetValue("X-Admin-Key", out var headerVal))
     {
-        return true;
+        var keyStr = headerVal.ToString().Trim();
+        if (authService.ValidateSessionToken(keyStr, out _, out _))
+        {
+            return true;
+        }
+        if (keyStr == adminApiKey)
+        {
+            return true;
+        }
     }
+
     return false;
 }
 
 // =========================================================================
-// 1. CART VALIDATION & PRICE CALCULATION ENDPOINT
+// 1. AUTHENTICATION & RBAC ENDPOINTS
+// =========================================================================
+app.MapPost("/api/auth/login", async (LoginRequest request, AuthService authService) =>
+{
+    var response = await authService.LoginAsync(request.Username, request.Password);
+    return response.Success ? Results.Ok(response) : Results.BadRequest(response);
+});
+
+app.MapGet("/api/auth/me", (HttpContext ctx, AuthService authService) =>
+{
+    if (ctx.Request.Headers.TryGetValue("Authorization", out var hVal) &&
+        authService.ValidateSessionToken(hVal.ToString(), out var username, out var role))
+    {
+        return Results.Ok(new { success = true, username, role });
+    }
+    if (ctx.Request.Headers.TryGetValue("X-Admin-Key", out var aVal) &&
+        authService.ValidateSessionToken(aVal.ToString(), out var u, out var r))
+    {
+        return Results.Ok(new { success = true, username = u, role = r });
+    }
+    return Results.Unauthorized();
+});
+
+// =========================================================================
+// 2. CART VALIDATION & PRICE CALCULATION ENDPOINT
 // =========================================================================
 app.MapPost("/api/order/validate-cart", (ValidateCartRequest request) =>
 {
@@ -82,9 +149,9 @@ app.MapPost("/api/order/validate-cart", (ValidateCartRequest request) =>
 });
 
 // =========================================================================
-// 2. CREATE ORDER ENDPOINT (Authoritative Server-Side Calculation)
+// 3. CREATE ORDER ENDPOINT (Authoritative Server-Side Calculation & SQL)
 // =========================================================================
-app.MapPost("/api/order/create", async (CreateOrderRequest request, HttpContext httpContext) =>
+app.MapPost("/api/order/create", async (CreateOrderRequest request, HttpContext httpContext, IOrderRepository orderRepo) =>
 {
     try
     {
@@ -160,7 +227,7 @@ app.MapPost("/api/order/create", async (CreateOrderRequest request, HttpContext 
             payment.Note = "Cổng thanh toán trực tuyến VNPay Sandbox";
         }
 
-        // 5. Persist to Repository
+        // 5. Persist to SQL Server Repository via ACID Transaction
         var createdOrder = await orderRepo.CreateOrderAsync(order, payment);
 
         // 6. Construct Response
@@ -217,9 +284,9 @@ app.MapPost("/api/order/create", async (CreateOrderRequest request, HttpContext 
 });
 
 // =========================================================================
-// 3. ORDER LOOKUP / TRACKING ENDPOINT (Tra Cứu Đơn Hàng)
+// 4. ORDER LOOKUP / TRACKING ENDPOINT (Tra Cứu Đơn Hàng)
 // =========================================================================
-app.MapPost("/api/order/lookup", async (OrderLookupRequest request) =>
+app.MapPost("/api/order/lookup", async (OrderLookupRequest request, IOrderRepository orderRepo) =>
 {
     try
     {
@@ -274,9 +341,9 @@ app.MapPost("/api/order/lookup", async (OrderLookupRequest request) =>
 });
 
 // =========================================================================
-// 4. VNPAY RETURN URL (User Browser Redirect from VNPay)
+// 5. VNPAY RETURN URL (User Browser Redirect from VNPay)
 // =========================================================================
-app.MapGet("/api/payment/vnpay-return", async (HttpContext ctx) =>
+app.MapGet("/api/payment/vnpay-return", async (HttpContext ctx, IOrderRepository orderRepo) =>
 {
     var query = ctx.Request.Query;
     var isValidSignature = vnpayService.ValidateSignature(query, out var orderCode, out var responseCode, out var amount);
@@ -326,9 +393,9 @@ app.MapGet("/api/payment/vnpay-return", async (HttpContext ctx) =>
 });
 
 // =========================================================================
-// 5. VNPAY IPN WEBHOOK (Server-to-Server Instant Payment Notification)
+// 6. VNPAY IPN WEBHOOK (Server-to-Server Instant Payment Notification)
 // =========================================================================
-app.MapGet("/api/payment/vnpay-ipn", async (HttpContext ctx) =>
+app.MapGet("/api/payment/vnpay-ipn", async (HttpContext ctx, IOrderRepository orderRepo) =>
 {
     var query = ctx.Request.Query;
     var isValidSignature = vnpayService.ValidateSignature(query, out var orderCode, out var responseCode, out var amount);
@@ -394,11 +461,11 @@ app.MapGet("/api/payment/vnpay-ipn", async (HttpContext ctx) =>
 });
 
 // =========================================================================
-// 6. ADMIN DASHBOARD & ORDER MANAGEMENT ENDPOINTS
+// 7. ADMIN DASHBOARD & ORDER MANAGEMENT ENDPOINTS
 // =========================================================================
-app.MapGet("/api/admin/stats", async (HttpContext ctx) =>
+app.MapGet("/api/admin/stats", async (HttpContext ctx, IOrderRepository orderRepo, AuthService authService) =>
 {
-    if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
+    if (!IsAdminAuthorized(ctx, authService)) return Results.Unauthorized();
 
     var allOrders = await orderRepo.GetAllOrdersAsync();
     var totalOrders = allOrders.Count;
@@ -419,6 +486,8 @@ app.MapGet("/api/admin/stats", async (HttpContext ctx) =>
 
 app.MapGet("/api/admin/orders", async (
     HttpContext ctx,
+    IOrderRepository orderRepo,
+    AuthService authService,
     string? status, 
     string? paymentStatus, 
     string? paymentMethod, 
@@ -426,7 +495,7 @@ app.MapGet("/api/admin/orders", async (
     string? fromDate, 
     string? toDate) =>
 {
-    if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
+    if (!IsAdminAuthorized(ctx, authService)) return Results.Unauthorized();
 
     OrderStatus? orderStatusEnum = null;
     if (Enum.TryParse<OrderStatus>(status, true, out var sVal)) orderStatusEnum = sVal;
@@ -447,9 +516,9 @@ app.MapGet("/api/admin/orders", async (
     return Results.Ok(orders);
 });
 
-app.MapGet("/api/admin/orders/{id}", async (string id, HttpContext ctx) =>
+app.MapGet("/api/admin/orders/{id}", async (string id, HttpContext ctx, IOrderRepository orderRepo, AuthService authService) =>
 {
-    if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
+    if (!IsAdminAuthorized(ctx, authService)) return Results.Unauthorized();
 
     var order = await orderRepo.GetOrderByIdAsync(id);
     if (order == null) return Results.NotFound(new { message = "Không tìm thấy đơn hàng." });
@@ -465,19 +534,26 @@ app.MapGet("/api/admin/orders/{id}", async (string id, HttpContext ctx) =>
     });
 });
 
-app.MapPost("/api/admin/orders/{id}/status", async (string id, UpdateOrderStatusRequest req, HttpContext ctx) =>
+app.MapPost("/api/admin/orders/{id}/status", async (string id, UpdateOrderStatusRequest req, HttpContext ctx, IOrderRepository orderRepo, AuthService authService) =>
 {
-    if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
+    if (!IsAdminAuthorized(ctx, authService)) return Results.Unauthorized();
 
-    var updated = await orderRepo.UpdateOrderStatusAsync(id, req.NewStatus, req.AdminName ?? "Quản trị viên", req.Note);
-    if (!updated) return Results.NotFound(new { success = false, message = "Không tìm thấy đơn hàng." });
+    try
+    {
+        var updated = await orderRepo.UpdateOrderStatusAsync(id, req.NewStatus, req.AdminName ?? "Quản trị viên", req.Note);
+        if (!updated) return Results.NotFound(new { success = false, message = "Không tìm thấy đơn hàng." });
 
-    return Results.Ok(new { success = true, message = $"Đã cập nhật trạng thái đơn hàng sang {req.NewStatus}." });
+        return Results.Ok(new { success = true, message = $"Đã cập nhật trạng thái đơn hàng sang {req.NewStatus}." });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { success = false, message = ex.Message });
+    }
 });
 
-app.MapPost("/api/admin/orders/{id}/confirm-payment", async (string id, ConfirmPaymentRequest req, HttpContext ctx) =>
+app.MapPost("/api/admin/orders/{id}/confirm-payment", async (string id, ConfirmPaymentRequest req, HttpContext ctx, IOrderRepository orderRepo, AuthService authService) =>
 {
-    if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
+    if (!IsAdminAuthorized(ctx, authService)) return Results.Unauthorized();
 
     var txnRef = string.IsNullOrWhiteSpace(req.TransactionReference) ? $"BANK-{DateTime.UtcNow:yyyyMMddHHmmss}" : req.TransactionReference;
     var updated = await orderRepo.ConfirmPaymentAsync(id, txnRef, req.Amount, req.AdminName ?? "Quản trị viên", req.Note);
@@ -487,38 +563,28 @@ app.MapPost("/api/admin/orders/{id}/confirm-payment", async (string id, ConfirmP
 });
 
 // =========================================================================
-// 7. B2B QUOTE ENDPOINTS (Preserved from original implementation)
+// 8. B2B QUOTE ENDPOINTS (Writing to SQL Server B2BQuotes table)
 // =========================================================================
-var dataDir = Path.Combine(contentRoot, "data");
-var quotesFilePath = Path.Combine(dataDir, "quotes.json");
-
-app.MapPost("/api/quote", async (JsonElement payload) =>
+app.MapPost("/api/quote", async (JsonElement payload, EcoArecaDbContext db) =>
 {
     try
     {
-        var record = new
+        var quote = new B2BQuote
         {
-            id = Guid.NewGuid().ToString("N")[..8],
-            receivedAt = DateTime.UtcNow.ToString("o"),
-            data = payload
+            FullName = payload.TryGetProperty("fullName", out var fn) ? fn.GetString() ?? "" : "",
+            Phone = payload.TryGetProperty("phone", out var ph) ? ph.GetString() ?? "" : "",
+            BusinessModel = payload.TryGetProperty("businessModel", out var bm) ? bm.GetString() ?? "" : "",
+            Demand = payload.TryGetProperty("demand", out var dm) ? dm.GetString() ?? "" : "",
+            Address = payload.TryGetProperty("address", out var ad) ? ad.GetString() ?? "" : "",
+            QuantityExpected = payload.TryGetProperty("quantityExpected", out var qe) ? qe.GetString() ?? "" : "",
+            Notes = payload.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "",
+            ReceivedAt = DateTime.UtcNow
         };
 
-        List<object> list = new();
-        if (File.Exists(quotesFilePath))
-        {
-            try
-            {
-                var content = await File.ReadAllTextAsync(quotesFilePath);
-                var existing = JsonSerializer.Deserialize<List<object>>(content);
-                if (existing != null) list = existing;
-            }
-            catch { }
-        }
-        list.Add(record);
-        var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(quotesFilePath, json);
+        db.B2BQuotes.Add(quote);
+        await db.SaveChangesAsync();
 
-        return Results.Ok(new { success = true, message = "Đã tiếp nhận yêu cầu báo giá/mẫu thử thành công", id = record.id });
+        return Results.Ok(new { success = true, message = "Đã tiếp nhận yêu cầu báo giá/mẫu thử thành công", id = quote.Id });
     }
     catch (Exception ex)
     {
@@ -526,17 +592,17 @@ app.MapPost("/api/quote", async (JsonElement payload) =>
     }
 });
 
-app.MapGet("/api/quotes", async () =>
+app.MapGet("/api/quotes", async (EcoArecaDbContext db) =>
 {
-    if (!File.Exists(quotesFilePath)) return Results.Ok(Array.Empty<object>());
-    var json = await File.ReadAllTextAsync(quotesFilePath);
-    return Results.Content(json, "application/json");
+    var quotes = await db.B2BQuotes.OrderByDescending(q => q.ReceivedAt).ToListAsync();
+    return Results.Ok(quotes);
 });
 
 Console.WriteLine("=============================================================");
-Console.WriteLine("🌱 ECO-ARECA E-Commerce & Payment Engine (.NET 8.0)");
+Console.WriteLine("🌱 ECO-ARECA Enterprise E-Commerce & Payment Engine (.NET 8.0)");
 Console.WriteLine("🌐 Server running at: http://localhost:5000");
-Console.WriteLine("💳 Payment Providers: COD, VietQR Bank Transfer, VNPay Sandbox");
+Console.WriteLine("🗄️ Database: SQL Server (EcoArecaDb) with EF Core");
+Console.WriteLine("🔒 Security: PBKDF2 Auth, State Machine, HMAC-SHA512 VNPay");
 Console.WriteLine("=============================================================");
 
 app.Run();
