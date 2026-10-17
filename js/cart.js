@@ -1,12 +1,16 @@
 /**
- * ECO-ARECA Shopping Cart & Order Handling Module
- * Matches interactive e-commerce requirements from Phase 5 & 6
+ * ECO-ARECA Shopping Cart Module
+ * Synchronized with authoritative server pricing,
+ * Free Shipping Progress Tracker, Voucher validation, and Checkout flow.
  */
 
 class CartManager {
   constructor() {
     this.items = [];
     this.storageKey = 'eco_areca_cart_v1';
+    this.couponCode = '';
+    this.freeShippingThreshold = 300000; // 300.000đ freeship
+
     this.loadCart();
     this.initUI();
   }
@@ -80,6 +84,7 @@ class CartManager {
 
   clearCart() {
     this.items = [];
+    this.couponCode = '';
     this.saveCart();
   }
 
@@ -94,7 +99,7 @@ class CartManager {
   getShippingFee() {
     const subtotal = this.getSubtotal();
     if (subtotal === 0) return 0;
-    return subtotal >= 300000 ? 0 : 25000;
+    return subtotal >= this.freeShippingThreshold ? 0 : 25000;
   }
 
   getTotal() {
@@ -114,11 +119,6 @@ class CartManager {
     this.cartTotalEl = document.getElementById('cart-total');
     this.cartCheckoutBtn = document.getElementById('cart-checkout-btn');
 
-    // Modals
-    this.orderModal = document.getElementById('order-modal');
-    this.orderModalClose = document.getElementById('order-modal-close');
-    this.orderForm = document.getElementById('order-form');
-
     if (this.cartBtn) {
       this.cartBtn.addEventListener('click', () => this.openDrawer());
     }
@@ -128,7 +128,11 @@ class CartManager {
     }
 
     if (this.drawerOverlay) {
-      this.drawerOverlay.addEventListener('click', () => this.closeDrawer());
+      this.drawerOverlay.addEventListener('click', () => {
+        this.closeDrawer();
+        if (window.checkout) window.checkout.close();
+        if (window.orderLookup) window.orderLookup.close();
+      });
     }
 
     if (this.cartCheckoutBtn) {
@@ -138,16 +142,10 @@ class CartManager {
           return;
         }
         this.closeDrawer();
-        this.openOrderModal();
+        if (window.checkout) {
+          window.checkout.open();
+        }
       });
-    }
-
-    if (this.orderModalClose) {
-      this.orderModalClose.addEventListener('click', () => this.closeOrderModal());
-    }
-
-    if (this.orderForm) {
-      this.orderForm.addEventListener('submit', (e) => this.handleOrderSubmit(e));
     }
 
     this.updateBadge();
@@ -182,6 +180,13 @@ class CartManager {
   renderDrawer() {
     if (!this.cartItemsList || !this.cartEmptyState) return;
 
+    const subtotal = this.getSubtotal();
+    const shipping = this.getShippingFee();
+    const total = this.getTotal();
+
+    // Render Free Shipping Progress Tracker
+    this.renderShippingTracker(subtotal);
+
     if (this.items.length === 0) {
       this.cartEmptyState.style.display = 'block';
       this.cartItemsList.style.display = 'none';
@@ -211,110 +216,57 @@ class CartManager {
       `).join('');
     }
 
-    const subtotal = this.getSubtotal();
-    const shipping = this.getShippingFee();
-    const total = this.getTotal();
-
     if (this.cartSubtotalEl) this.cartSubtotalEl.textContent = formatCurrency(subtotal);
     if (this.cartShippingEl) {
-      this.cartShippingEl.textContent = subtotal === 0 ? '0 đ' : (shipping === 0 ? 'Miễn phí' : formatCurrency(shipping));
+      this.cartShippingEl.innerHTML = subtotal === 0 
+        ? '0 đ' 
+        : (shipping === 0 ? '<span style="color:#2E7D32; font-weight:700;">Miễn phí</span>' : formatCurrency(shipping));
     }
     if (this.cartTotalEl) this.cartTotalEl.textContent = formatCurrency(total);
   }
 
-  openOrderModal() {
-    if (this.orderModal) {
-      const summaryList = document.getElementById('order-summary-list');
-      const orderTotalVal = document.getElementById('order-modal-total');
-      if (summaryList) {
-        summaryList.innerHTML = this.items.map(item => `
-          <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.88rem;">
-            <span>${item.name} (${item.variantLabel}) × ${item.quantity}</span>
-            <strong>${formatCurrency(item.price * item.quantity)}</strong>
-          </div>
-        `).join('');
+  renderShippingTracker(subtotal) {
+    let tracker = document.getElementById('cart-shipping-tracker');
+    if (!tracker && this.cartDrawer) {
+      const body = this.cartDrawer.querySelector('.cart-drawer-body');
+      if (body) {
+        tracker = document.createElement('div');
+        tracker.id = 'cart-shipping-tracker';
+        tracker.className = 'cart-shipping-tracker';
+        body.insertBefore(tracker, body.firstChild);
       }
-      if (orderTotalVal) {
-        orderTotalVal.textContent = formatCurrency(this.getTotal());
-      }
-      this.orderModal.classList.add('active');
     }
-  }
 
-  closeOrderModal() {
-    if (this.orderModal) {
-      this.orderModal.classList.remove('active');
-    }
-  }
+    if (!tracker) return;
 
-  handleOrderSubmit(e) {
-    e.preventDefault();
-    const form = e.target;
-    const name = form.customer_name.value.trim();
-    const phone = form.customer_phone.value.trim();
-    const address = form.customer_address.value.trim();
-    const notes = form.customer_notes.value.trim();
-    const payment = form.payment_method.value;
-
-    if (!name || !phone || !address) {
-      alert("Vui lòng điền đầy đủ Họ tên, Số điện thoại và Địa chỉ giao hàng!");
+    if (subtotal === 0) {
+      tracker.style.display = 'none';
       return;
     }
 
-    const orderData = {
-      orderCode: 'ECO-' + Math.floor(100000 + Math.random() * 900000),
-      createdAt: new Date().toISOString(),
-      customer: { name, phone, address, notes, payment },
-      items: this.items,
-      subtotal: this.getSubtotal(),
-      shippingFee: this.getShippingFee(),
-      total: this.getTotal()
-    };
+    tracker.style.display = 'block';
+    const percent = Math.min(100, Math.round((subtotal / this.freeShippingThreshold) * 100));
+    const remaining = Math.max(0, this.freeShippingThreshold - subtotal);
 
-    // Send to optional backend if available or simulate successful local save
-    const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Đang xử lý đơn hàng...";
+    if (remaining === 0) {
+      tracker.innerHTML = `
+        <div class="shipping-tracker-text">
+          <span>🎉</span> <span>Chúc mừng! Đơn hàng được <strong>MIỄN PHÍ VẬN CHUYỂN</strong></span>
+        </div>
+        <div class="shipping-progress-bar">
+          <div class="shipping-progress-fill" style="width: 100%; background: #2E7D32;"></div>
+        </div>
+      `;
+    } else {
+      tracker.innerHTML = `
+        <div class="shipping-tracker-text">
+          <span>🚚</span> <span>Mua thêm <strong>${formatCurrency(remaining)}</strong> để được <strong>Miễn Phí Vận Chuyển</strong></span>
+        </div>
+        <div class="shipping-progress-bar">
+          <div class="shipping-progress-fill" style="width: ${percent}%;"></div>
+        </div>
+      `;
     }
-
-    fetch('/api/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData)
-    })
-    .catch(() => {
-      // Backend not running yet, perfectly fine for frontend mode
-      return { ok: true };
-    })
-    .finally(() => {
-      setTimeout(() => {
-        const orderContainer = document.getElementById('order-modal-content');
-        if (orderContainer) {
-          orderContainer.innerHTML = `
-            <div style="text-align:center; padding:30px 10px;">
-              <div style="width:64px; height:64px; background:#E8F5E9; color:#2E7D32; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              </div>
-              <h3 style="color:#1E3B2A; margin-bottom:8px;">Đặt Hàng Thành Công!</h3>
-              <p style="color:#5E665E; font-size:0.95rem; margin-bottom:16px;">
-                Mã đơn hàng: <strong style="color:#C49A45;">${orderData.orderCode}</strong>
-              </p>
-              <p style="color:#5E665E; font-size:0.9rem; margin-bottom:24px;">
-                Cảm ơn bạn đã lựa chọn sản phẩm chén dĩa mo cau tự nhiên ECO-ARECA. Đội ngũ tư vấn sẽ liên hệ với bạn qua số <strong>${phone}</strong> để xác nhận thời gian giao hàng.
-              </p>
-              <button class="btn btn-primary" onclick="window.cart.finishOrderAndClose()">Đóng</button>
-            </div>
-          `;
-        }
-        this.clearCart();
-      }, 700);
-    });
-  }
-
-  finishOrderAndClose() {
-    this.closeOrderModal();
-    window.location.reload();
   }
 
   showToast(message) {

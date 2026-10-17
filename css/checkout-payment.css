@@ -1,0 +1,531 @@
+/**
+ * ECO-ARECA Checkout, Payment, VietQR, Order Lookup & Admin Styles
+ * Designed with natural green, warm areca beige, ivory white and premium e-commerce UX.
+ */
+
+/* ==========================================================================
+   FREE SHIPPING PROGRESS TRACKER (Cart Drawer)
+   ========================================================================== */
+.cart-shipping-tracker {
+  background-color: #F4F8F4;
+  border: 1px solid #D6E8D8;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.shipping-tracker-text {
+  font-size: 0.82rem;
+  color: var(--color-primary-dark);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.shipping-tracker-text strong {
+  color: #B8860B;
+}
+
+.shipping-progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #E2ECE3;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.shipping-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #437A50 0%, #C49A45 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* ==========================================================================
+   COUPON VOUCHER INPUT BOX
+   ========================================================================== */
+.coupon-input-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.coupon-input-group input {
+  flex-grow: 1;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.coupon-input-group input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.coupon-applied-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #E8F5E9;
+  color: #2E7D32;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+
+.coupon-applied-badge button {
+  background: none;
+  border: none;
+  color: #C62828;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   CHECKOUT MODAL (2-Column Responsive Layout)
+   ========================================================================== */
+.checkout-modal-dialog {
+  max-width: 980px;
+  width: 95%;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.22);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 0;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.checkout-left-col {
+  padding: 24px 28px;
+  border-right: 1px solid var(--color-border-light);
+}
+
+.checkout-right-col {
+  padding: 24px 24px;
+  background-color: #FAF9F5;
+  display: flex;
+  flex-direction: column;
+}
+
+.checkout-step-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkout-step-title .step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Selection Cards (Shipping & Payment) */
+.option-cards-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.option-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: #fff;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.option-card:hover {
+  border-color: var(--color-primary-light);
+  background-color: #FBFDFB;
+}
+
+.option-card.selected {
+  border-color: var(--color-primary);
+  background-color: #F4F8F4;
+  box-shadow: 0 2px 8px rgba(49, 92, 59, 0.08);
+}
+
+.option-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--color-primary);
+  width: 17px;
+  height: 17px;
+}
+
+.option-card-content {
+  flex-grow: 1;
+}
+
+.option-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.option-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.option-card-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.option-card-badge.gold {
+  background-color: #FFF8E1;
+  color: #B8860B;
+}
+
+.option-card-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* Checkout Line Items */
+.checkout-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.checkout-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--color-border-light);
+}
+
+.checkout-item-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.checkout-item-info {
+  flex-grow: 1;
+}
+
+.checkout-item-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  margin-bottom: 2px;
+}
+
+.checkout-item-sub {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.checkout-item-price {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  text-align: right;
+}
+
+/* Checkout Calculation Rows */
+.checkout-calc-rows {
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+  margin-top: auto;
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.calc-row.total-row {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-border);
+  margin-top: 6px;
+}
+
+.calc-row.total-row span strong {
+  color: #C49A45;
+}
+
+/* ==========================================================================
+   VIETQR & PAYMENT INSTRUCTION CARD
+   ========================================================================== */
+.vietqr-card-container {
+  background: #FFFFFF;
+  border: 1.5px solid #D6E8D8;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(49, 92, 59, 0.08);
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.vietqr-image-wrap {
+  text-align: center;
+}
+
+.vietqr-img {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 12px;
+  border: 1px solid #E0E0E0;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+}
+
+.vietqr-img-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.bank-details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bank-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #F8FAF8;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #EAEFEA;
+}
+
+.bank-detail-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.bank-detail-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bank-detail-val.highlight {
+  color: #B8860B;
+  font-size: 1.1rem;
+}
+
+.copy-btn {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+  border: 1px solid #C8E6C9;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+  background-color: #2E7D32;
+  color: #fff;
+}
+
+.copy-btn.copied {
+  background-color: #2E7D32;
+  color: #fff;
+}
+
+.bank-notice-box {
+  background-color: #FFFDE7;
+  border-left: 3px solid #FBC02D;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: #6D4C41;
+  border-radius: 4px;
+  margin-top: 14px;
+}
+
+/* ==========================================================================
+   ORDER LOOKUP STEPPER TIMELINE
+   ========================================================================== */
+.order-stepper {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  margin: 30px 10px 40px;
+}
+
+.order-stepper::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  height: 3px;
+  background-color: #E0E0E0;
+  z-index: 1;
+}
+
+.stepper-progress-line {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  height: 3px;
+  background-color: var(--color-primary);
+  z-index: 2;
+  transition: width 0.4s ease;
+}
+
+.stepper-step {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 80px;
+  text-align: center;
+}
+
+.stepper-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 2.5px solid #CCCCCC;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #999;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+.stepper-step.active .stepper-circle {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(49, 92, 59, 0.15);
+}
+
+.stepper-step.completed .stepper-circle {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+.stepper-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.stepper-step.active .stepper-title {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+/* Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-pill.pending { background-color: #FFF3E0; color: #E65100; }
+.status-pill.confirmed { background-color: #E3F2FD; color: #1565C0; }
+.status-pill.processing { background-color: #E8EAF6; color: #283593; }
+.status-pill.shipping { background-color: #EDE7F6; color: #4527A0; }
+.status-pill.completed { background-color: #E8F5E9; color: #2E7D32; }
+.status-pill.cancelled { background-color: #FFEBEE; color: #C62828; }
+.status-pill.paid { background-color: #E8F5E9; color: #2E7D32; }
+.status-pill.failed { background-color: #FFEBEE; color: #C62828; }
+
+/* Responsive adjustments */
+@media (max-width: 820px) {
+  .checkout-grid {
+    grid-template-columns: 1fr;
+  }
+  .checkout-left-col {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+  .vietqr-card-container {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .vietqr-image-wrap {
+    margin: 0 auto;
+  }
+  .order-stepper {
+    margin: 20px 0 30px;
+  }
+  .stepper-title {
+    font-size: 0.68rem;
+  }
+}

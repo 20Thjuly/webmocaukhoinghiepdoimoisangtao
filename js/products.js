@@ -17,9 +17,9 @@ const ECO_PRODUCTS = [
     badgeClass: "hot",
     isBestSeller: true,
     variants: [
-      { label: "Set 10 chiếc", price: 25000, pricePerUnit: 2500, default: true },
-      { label: "Set 25 chiếc", price: 60000, pricePerUnit: 2400 },
-      { label: "Set 50 chiếc", price: 115000, pricePerUnit: 2300 }
+      { label: "Set 10 chiếc", price: 18000, pricePerUnit: 1800, default: true },
+      { label: "Set 25 chiếc", price: 42000, pricePerUnit: 1680 },
+      { label: "Set 50 chiếc", price: 80000, pricePerUnit: 1600 }
     ]
   },
   {
@@ -34,9 +34,9 @@ const ECO_PRODUCTS = [
     badgeClass: "eco",
     isBestSeller: false,
     variants: [
-      { label: "Set 10 chiếc", price: 42000, pricePerUnit: 4200, default: true },
-      { label: "Set 25 chiếc", price: 99000, pricePerUnit: 3960 },
-      { label: "Set 50 chiếc", price: 190000, pricePerUnit: 3800 }
+      { label: "Set 10 chiếc", price: 30000, pricePerUnit: 3000, default: true },
+      { label: "Set 25 chiếc", price: 70000, pricePerUnit: 2800 },
+      { label: "Set 50 chiếc", price: 135000, pricePerUnit: 2700 }
     ]
   },
   {
@@ -51,9 +51,9 @@ const ECO_PRODUCTS = [
     badgeClass: "eco",
     isBestSeller: true,
     variants: [
-      { label: "Dĩa 15 cm (Set 10)", price: 48000, pricePerUnit: 4800, default: false },
-      { label: "Dĩa 20 cm (Set 10)", price: 62000, pricePerUnit: 6200, default: true },
-      { label: "Dĩa 25 cm (Set 10)", price: 75000, pricePerUnit: 7500, default: false }
+      { label: "Dĩa 15 cm (Set 10)", price: 35000, pricePerUnit: 3500, default: false },
+      { label: "Dĩa 20 cm (Set 10)", price: 45000, pricePerUnit: 4500, default: true },
+      { label: "Dĩa 25 cm (Set 10)", price: 55000, pricePerUnit: 5500, default: false }
     ]
   },
   {
@@ -68,9 +68,9 @@ const ECO_PRODUCTS = [
     badgeClass: "hot",
     isBestSeller: true,
     variants: [
-      { label: "15 × 15 cm (Set 10)", price: 55000, pricePerUnit: 5500, default: false },
-      { label: "20 × 20 cm (Set 10)", price: 72000, pricePerUnit: 7200, default: true },
-      { label: "18 × 24 cm (Set 10)", price: 89000, pricePerUnit: 8900, default: false }
+      { label: "15 × 15 cm (Set 10)", price: 39000, pricePerUnit: 3900, default: false },
+      { label: "20 × 20 cm (Set 10)", price: 52000, pricePerUnit: 5200, default: true },
+      { label: "18 × 24 cm (Set 10)", price: 65000, pricePerUnit: 6500, default: false }
     ]
   },
   {
@@ -85,8 +85,8 @@ const ECO_PRODUCTS = [
     badgeClass: "hot",
     isBestSeller: true,
     variants: [
-      { label: "Set 10 món tổng hợp", price: 89000, pricePerUnit: 8900, default: false },
-      { label: "Set 25 món gia đình", price: 199000, pricePerUnit: 7960, default: true }
+      { label: "Set 10 món tổng hợp", price: 65000, pricePerUnit: 6500, default: false },
+      { label: "Set 25 món gia đình", price: 145000, pricePerUnit: 5800, default: true }
     ]
   },
   {
