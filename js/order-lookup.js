@@ -91,23 +91,38 @@ class OrderLookupManager {
         })
       });
 
-      const data = await res.json();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.order) {
+          this.renderOrderDetails(data.order, data.history, data.bankTransferInfo);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Server order lookup unavailable, falling back to local storage", err);
+    }
 
-      if (!res.ok || !data.success) {
-        alert(data.message || "Không tìm thấy thông tin đơn hàng phù hợp.");
+    // Local storage lookup fallback
+    try {
+      const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+      const cleanPhone = phone.replace(/[\s.-]/g, '');
+      const found = localOrders.find(o => 
+        o.orderCode.toLowerCase() === code.toLowerCase() &&
+        (o.phoneNumber === cleanPhone || o.phoneNumber.endsWith(cleanPhone.slice(-9)))
+      );
+
+      if (found) {
+        this.renderOrderDetails(found, found.history || [], found.bankTransferInfo);
         return;
       }
+    } catch (e) {
+      console.warn("Error reading local orders", e);
+    }
 
-      this.renderOrderDetails(data.order, data.history, data.bankTransferInfo);
-
-    } catch (err) {
-      console.error("Order lookup failed", err);
-      alert("Đã xảy ra lỗi trong quá trình tra cứu. Quý khách vui lòng thử lại sau.");
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `Tra Cứu Đơn Hàng`;
-      }
+    alert("Không tìm thấy thông tin đơn hàng phù hợp với mã đơn và số điện thoại đã nhập.");
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `Tra Cứu Đơn Hàng`;
     }
   }
 

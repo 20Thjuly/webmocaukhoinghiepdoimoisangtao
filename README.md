@@ -31,10 +31,16 @@ Website được thiết kế dựa trên cấu trúc trải nghiệm khách hà
 
 ---
 
-## 🚀 Hướng Dẫn Chạy Website
+## 🌐 Trải Nghiệm Website Trực Tuyến (Live Demo)
 
-### Chạy với máy chủ .NET 8.0 (Khuyến nghị cho đầy đủ chức năng thanh toán & tra cứu)
-Yêu cầu đã cài đặt .NET 8.0 SDK:
+- **Trang chủ mua hàng:** [https://20thjuly.github.io/webmocaukhoinghiepdoimoisangtao/](https://20thjuly.github.io/webmocaukhoinghiepdoimoisangtao/)
+- **Trang quản trị đơn hàng:** [https://20thjuly.github.io/webmocaukhoinghiepdoimoisangtao/admin.html](https://20thjuly.github.io/webmocaukhoinghiepdoimoisangtao/admin.html) *(Khóa truy cập: `EcoAreca@Admin2026`)*
+
+---
+
+## 🚀 Hướng Dẫn Chạy Máy Chủ Nội Bộ (.NET 8.0)
+
+Để kích hoạt đầy đủ backend API (xác thực giá máy chủ, webhook VNPay IPN và lưu trữ file tập trung):
 ```bash
 dotnet run
 ```

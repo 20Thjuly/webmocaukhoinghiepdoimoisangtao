@@ -28,24 +28,39 @@ class AdminManager {
         headers: this.getHeaders()
       });
 
-      if (!res.ok) return;
-
-      const stats = await res.json();
-      document.getElementById('stat-total-orders').textContent = stats.totalOrders;
-      document.getElementById('stat-pending-orders').textContent = stats.pendingOrders;
-      document.getElementById('stat-pending-transfers').textContent = stats.pendingTransfers;
-      document.getElementById('stat-total-revenue').textContent = formatCurrency(stats.totalRevenue);
-      document.getElementById('stat-today-orders').textContent = stats.todayOrders;
+      if (res.ok) {
+        const stats = await res.json();
+        document.getElementById('stat-total-orders').textContent = stats.totalOrders;
+        document.getElementById('stat-pending-orders').textContent = stats.pendingOrders;
+        document.getElementById('stat-pending-transfers').textContent = stats.pendingTransfers;
+        document.getElementById('stat-total-revenue').textContent = formatCurrency(stats.totalRevenue);
+        document.getElementById('stat-today-orders').textContent = stats.todayOrders;
+        return;
+      }
     } catch (e) {
-      console.error("Error loading stats", e);
+      console.warn("Server admin stats not reachable, calculating from local storage", e);
     }
+
+    // Local stats fallback
+    try {
+      const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+      const total = localOrders.length;
+      const pending = localOrders.filter(o => o.orderStatus === 'PendingConfirmation').length;
+      const pendingTransfers = localOrders.filter(o => o.paymentMethod === 'BankTransfer' && o.paymentStatus === 'Pending').length;
+      const revenue = localOrders.filter(o => o.paymentStatus === 'Paid').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+      document.getElementById('stat-total-orders').textContent = total;
+      document.getElementById('stat-pending-orders').textContent = pending;
+      document.getElementById('stat-pending-transfers').textContent = pendingTransfers;
+      document.getElementById('stat-total-revenue').textContent = formatCurrency(revenue);
+      document.getElementById('stat-today-orders').textContent = total;
+    } catch (e) {}
   }
 
   async loadOrders() {
     const tbody = document.getElementById('admin-orders-tbody');
     if (!tbody) return;
 
-    const search = document.getElementById('admin-search-input')?.value.trim() || '';
+    const search = document.getElementById('admin-search-input')?.value.trim().toLowerCase() || '';
     const status = document.getElementById('filter-order-status')?.value || '';
     const paymentStatus = document.getElementById('filter-payment-status')?.value || '';
     const paymentMethod = document.getElementById('filter-payment-method')?.value || '';
@@ -61,92 +76,117 @@ class AdminManager {
         headers: this.getHeaders()
       });
 
-      if (!res.ok) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#C62828;">Không thể truy cập dữ liệu quản trị. Kiểm tra quyền xác thực!</td></tr>`;
+      if (res.ok) {
+        const orders = await res.json();
+
+        if (orders.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#888;">Không tìm thấy đơn hàng nào phù hợp với điều kiện lọc.</td></tr>`;
+          return;
+        }
+
+        this.renderOrdersTable(orders, tbody);
         return;
       }
-
-      const orders = await res.json();
-
-      if (orders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#888;">Không tìm thấy đơn hàng nào phù hợp với điều kiện lọc.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = orders.map(o => {
-        const statusMap = {
-          'PendingConfirmation': { text: 'Chờ xác nhận', class: 'pending' },
-          'Confirmed': { text: 'Đã xác nhận', class: 'confirmed' },
-          'Processing': { text: 'Đang chuẩn bị', class: 'processing' },
-          'Shipping': { text: 'Đang giao', class: 'shipping' },
-          'Completed': { text: 'Hoàn thành', class: 'completed' },
-          'Cancelled': { text: 'Đã hủy', class: 'cancelled' }
-        };
-
-        const paymentStatusMap = {
-          'Pending': { text: 'Chờ thanh toán', class: 'pending' },
-          'Paid': { text: 'Đã thanh toán', class: 'paid' },
-          'Failed': { text: 'Thất bại', class: 'failed' },
-          'Cancelled': { text: 'Đã hủy', class: 'cancelled' }
-        };
-
-        const orderSt = statusMap[o.orderStatus] || { text: o.orderStatus, class: 'pending' };
-        const paySt = paymentStatusMap[o.paymentStatus] || { text: o.paymentStatus, class: 'pending' };
-
-        const itemsSummary = o.items.map(it => `${it.productNameSnapshot} (${it.quantity})`).join(', ');
-
-        return `
-          <tr>
-            <td>
-              <strong style="color:#1E3B2A; cursor:pointer;" onclick="window.admin.viewOrderDetail('${o.id}')">
-                ${o.orderCode}
-              </strong>
-            </td>
-            <td>
-              <div style="font-weight:700;">${o.customerName}</div>
-              <div style="font-size:0.78rem; color:#666;">${o.phoneNumber}</div>
-            </td>
-            <td>
-              <div style="font-size:0.82rem;">${new Date(o.createdAt).toLocaleDateString('vi-VN')}</div>
-              <div style="font-size:0.75rem; color:#888;">${new Date(o.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
-            </td>
-            <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${itemsSummary}">
-              <span style="font-weight:600;">${o.items.length} món:</span> ${itemsSummary}
-            </td>
-            <td>
-              <strong style="color:#B8860B;">${formatCurrency(o.totalAmount)}</strong>
-            </td>
-            <td>
-              <span style="font-size:0.8rem; font-weight:600;">${this.formatMethod(o.paymentMethod)}</span>
-            </td>
-            <td>
-              <span class="status-pill ${paySt.class}">${paySt.text}</span>
-            </td>
-            <td>
-              <span class="status-pill ${orderSt.class}">${orderSt.text}</span>
-            </td>
-            <td style="text-align:right; white-space:nowrap;">
-              <button class="action-btn-sm view" onclick="window.admin.viewOrderDetail('${o.id}')" title="Xem chi tiết">
-                🔍 Xem
-              </button>
-              ${o.orderStatus === 'PendingConfirmation' ? `
-                <button class="action-btn-sm confirm" onclick="window.admin.quickConfirmOrder('${o.id}')" title="Duyệt đơn nhanh">
-                  ✓ Duyệt
-                </button>
-              ` : ''}
-              ${o.paymentStatus === 'Pending' && o.paymentMethod === 'BankTransfer' ? `
-                <button class="action-btn-sm pay" onclick="window.admin.quickConfirmPayment('${o.id}', ${o.totalAmount})" title="Xác nhận đã nhận chuyển khoản">
-                  🏦 Đã Nhận CK
-                </button>
-              ` : ''}
-            </td>
-          </tr>
-        `;
-      }).join('');
-
     } catch (e) {
-      console.error("Error loading orders", e);
+      console.warn("Server admin orders not reachable, reading local storage", e);
     }
+
+    // Local orders fallback
+    try {
+      let localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+      if (search) {
+        localOrders = localOrders.filter(o => 
+          (o.orderCode && o.orderCode.toLowerCase().includes(search)) ||
+          (o.phoneNumber && o.phoneNumber.includes(search)) ||
+          (o.customerName && o.customerName.toLowerCase().includes(search))
+        );
+      }
+      if (status) localOrders = localOrders.filter(o => o.orderStatus === status);
+      if (paymentStatus) localOrders = localOrders.filter(o => o.paymentStatus === paymentStatus);
+      if (paymentMethod) localOrders = localOrders.filter(o => o.paymentMethod === paymentMethod);
+
+      if (localOrders.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#888;">Chưa có đơn hàng nào trên thiết bị này.</td></tr>`;
+        return;
+      }
+
+      this.renderOrdersTable(localOrders, tbody);
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#C62828;">Không thể đọc danh sách đơn hàng.</td></tr>`;
+    }
+  }
+
+  renderOrdersTable(orders, tbody) {
+    tbody.innerHTML = orders.map(o => {
+      const statusMap = {
+        'PendingConfirmation': { text: 'Chờ xác nhận', class: 'pending' },
+        'Confirmed': { text: 'Đã xác nhận', class: 'confirmed' },
+        'Processing': { text: 'Đang chuẩn bị', class: 'processing' },
+        'Shipping': { text: 'Đang giao', class: 'shipping' },
+        'Completed': { text: 'Hoàn thành', class: 'completed' },
+        'Cancelled': { text: 'Đã hủy', class: 'cancelled' }
+      };
+
+      const paymentStatusMap = {
+        'Pending': { text: 'Chờ thanh toán', class: 'pending' },
+        'Paid': { text: 'Đã thanh toán', class: 'paid' },
+        'Failed': { text: 'Thất bại', class: 'failed' },
+        'Cancelled': { text: 'Đã hủy', class: 'cancelled' }
+      };
+
+      const orderSt = statusMap[o.orderStatus] || { text: o.orderStatus, class: 'pending' };
+      const paySt = paymentStatusMap[o.paymentStatus] || { text: o.paymentStatus, class: 'pending' };
+
+      const itemsSummary = (o.items || []).map(it => `${it.productNameSnapshot} (${it.quantity})`).join(', ');
+
+      return `
+        <tr>
+          <td>
+            <strong style="color:#1E3B2A; cursor:pointer;" onclick="window.admin.viewOrderDetail('${o.id}')">
+              ${o.orderCode}
+            </strong>
+          </td>
+          <td>
+            <div style="font-weight:700;">${o.customerName}</div>
+            <div style="font-size:0.78rem; color:#666;">${o.phoneNumber}</div>
+          </td>
+          <td>
+            <div style="font-size:0.82rem;">${new Date(o.createdAt).toLocaleDateString('vi-VN')}</div>
+            <div style="font-size:0.75rem; color:#888;">${new Date(o.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+          </td>
+          <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${itemsSummary}">
+            <span style="font-weight:600;">${(o.items || []).length} món:</span> ${itemsSummary}
+          </td>
+          <td>
+            <strong style="color:#B8860B;">${formatCurrency(o.totalAmount)}</strong>
+          </td>
+          <td>
+            <span style="font-size:0.8rem; font-weight:600;">${this.formatMethod(o.paymentMethod)}</span>
+          </td>
+          <td>
+            <span class="status-pill ${paySt.class}">${paySt.text}</span>
+          </td>
+          <td>
+            <span class="status-pill ${orderSt.class}">${orderSt.text}</span>
+          </td>
+          <td style="text-align:right; white-space:nowrap;">
+            <button class="action-btn-sm view" onclick="window.admin.viewOrderDetail('${o.id}')" title="Xem chi tiết">
+              🔍 Xem
+            </button>
+            ${o.orderStatus === 'PendingConfirmation' ? `
+              <button class="action-btn-sm confirm" onclick="window.admin.quickConfirmOrder('${o.id}')" title="Duyệt đơn nhanh">
+                ✓ Duyệt
+              </button>
+            ` : ''}
+            ${o.paymentStatus === 'Pending' && o.paymentMethod === 'BankTransfer' ? `
+              <button class="action-btn-sm pay" onclick="window.admin.quickConfirmPayment('${o.id}', ${o.totalAmount})" title="Xác nhận đã nhận chuyển khoản">
+                🏦 Đã Nhận CK
+              </button>
+            ` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   async viewOrderDetail(id) {
@@ -158,17 +198,35 @@ class AdminManager {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
+    let order, payments, history;
     try {
       const res = await fetch(`/api/admin/orders/${id}`, {
         headers: this.getHeaders()
       });
 
-      if (!res.ok) {
-        content.innerHTML = `<div style="color:red; text-align:center;">Không thể tải dữ liệu đơn hàng.</div>`;
+      if (res.ok) {
+        const data = await res.json();
+        order = data.order;
+        payments = data.payments || [];
+        history = data.history || [];
+      } else {
+        throw new Error("Server response not ok");
+      }
+    } catch (e) {
+      console.warn("Using local order details fallback", e);
+      const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+      const found = localOrders.find(o => o.id === id);
+      if (found) {
+        order = found;
+        payments = [];
+        history = found.history || [];
+      } else {
+        content.innerHTML = `<div style="color:red; text-align:center;">Không tìm thấy dữ liệu đơn hàng.</div>`;
         return;
       }
+    }
 
-      const { order, payments, history } = await res.json();
+    try {
       document.getElementById('admin-modal-title').textContent = `Chi Tiết Đơn Hàng ${order.orderCode}`;
 
       content.innerHTML = `
@@ -296,6 +354,7 @@ class AdminManager {
   async quickConfirmOrder(id) {
     if (!confirm("Bạn có chắc chắn muốn duyệt và xác nhận đơn hàng này?")) return;
 
+    let updated = false;
     try {
       const res = await fetch(`/api/admin/orders/${id}/status`, {
         method: 'POST',
@@ -306,15 +365,33 @@ class AdminManager {
           adminName: "Admin"
         })
       });
-
-      if (res.ok) {
-        this.loadOrders();
-        this.loadStats();
-      } else {
-        alert("Lỗi cập nhật trạng thái đơn hàng.");
-      }
+      if (res.ok) updated = true;
     } catch (e) {
-      console.error(e);
+      console.warn("Server update status unavailable, updating local storage", e);
+    }
+
+    if (!updated) {
+      try {
+        const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+        const target = localOrders.find(o => o.id === id);
+        if (target) {
+          target.orderStatus = 'Confirmed';
+          target.history = target.history || [];
+          target.history.push({
+            fromStatus: 'PendingConfirmation',
+            toStatus: 'Confirmed',
+            changedAt: new Date().toISOString(),
+            changedBy: 'Admin (Duyệt nhanh)'
+          });
+          localStorage.setItem('ecoareca_local_orders', JSON.stringify(localOrders));
+          updated = true;
+        }
+      } catch (err) {}
+    }
+
+    if (updated) {
+      this.loadOrders();
+      this.loadStats();
     }
   }
 
@@ -322,6 +399,7 @@ class AdminManager {
     const txn = prompt(`Nhập mã đối soát ngân hàng cho đơn hàng (Số tiền: ${formatCurrency(amount)}):`, `MB-${Date.now().toString().slice(-6)}`);
     if (!txn) return;
 
+    let confirmed = false;
     try {
       const res = await fetch(`/api/admin/orders/${id}/confirm-payment`, {
         method: 'POST',
@@ -333,16 +411,34 @@ class AdminManager {
           adminName: "Admin"
         })
       });
-
-      if (res.ok) {
-        alert("Đã xác nhận thanh toán thành công!");
-        this.loadOrders();
-        this.loadStats();
-      } else {
-        alert("Lỗi xác nhận thanh toán.");
-      }
+      if (res.ok) confirmed = true;
     } catch (e) {
-      console.error(e);
+      console.warn("Server payment confirm unavailable, updating local storage", e);
+    }
+
+    if (!confirmed) {
+      try {
+        const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+        const target = localOrders.find(o => o.id === id);
+        if (target) {
+          target.paymentStatus = 'Paid';
+          target.history = target.history || [];
+          target.history.push({
+            fromStatus: 'Pending',
+            toStatus: 'Paid',
+            changedAt: new Date().toISOString(),
+            changedBy: `Admin (Đối soát: ${txn})`
+          });
+          localStorage.setItem('ecoareca_local_orders', JSON.stringify(localOrders));
+          confirmed = true;
+        }
+      } catch (err) {}
+    }
+
+    if (confirmed) {
+      alert("Đã xác nhận thanh toán thành công!");
+      this.loadOrders();
+      this.loadStats();
     }
   }
 
@@ -363,6 +459,7 @@ class AdminManager {
     const newStatusInt = statusMap[select.value] ?? 0;
     const note = noteInput ? noteInput.value.trim() : '';
 
+    let updated = false;
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/status`, {
         method: 'POST',
@@ -373,46 +470,84 @@ class AdminManager {
           adminName: "Admin"
         })
       });
-
-      if (res.ok) {
-        alert("Đã cập nhật trạng thái đơn hàng!");
-        this.viewOrderDetail(orderId);
-        this.loadOrders();
-        this.loadStats();
-      } else {
-        alert("Lỗi cập nhật trạng thái.");
-      }
+      if (res.ok) updated = true;
     } catch (e) {
-      console.error(e);
+      console.warn("Server update status unavailable, updating local storage", e);
+    }
+
+    if (!updated) {
+      try {
+        const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+        const target = localOrders.find(o => o.id === orderId);
+        if (target) {
+          target.orderStatus = select.value;
+          target.history = target.history || [];
+          target.history.push({
+            fromStatus: target.orderStatus,
+            toStatus: select.value,
+            changedAt: new Date().toISOString(),
+            changedBy: 'Admin'
+          });
+          localStorage.setItem('ecoareca_local_orders', JSON.stringify(localOrders));
+          updated = true;
+        }
+      } catch (err) {}
+    }
+
+    if (updated) {
+      alert("Đã cập nhật trạng thái đơn hàng!");
+      this.viewOrderDetail(orderId);
+      this.loadOrders();
+      this.loadStats();
     }
   }
 
   async saveConfirmPayment(orderId, amount) {
     const refInput = document.getElementById('modal-confirm-pay-ref');
     const ref = refInput ? refInput.value.trim() : '';
+    const txnRef = ref || `BANK-${Date.now().toString().slice(-6)}`;
 
+    let confirmed = false;
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/confirm-payment`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify({
           amount: amount,
-          transactionReference: ref || `BANK-${Date.now().toString().slice(-6)}`,
+          transactionReference: txnRef,
           note: "Xác nhận chuyển khoản ngân hàng từ trang chi tiết",
           adminName: "Admin"
         })
       });
-
-      if (res.ok) {
-        alert("Đã xác nhận thanh toán thành công cho đơn hàng!");
-        this.viewOrderDetail(orderId);
-        this.loadOrders();
-        this.loadStats();
-      } else {
-        alert("Lỗi xác nhận thanh toán.");
-      }
+      if (res.ok) confirmed = true;
     } catch (e) {
-      console.error(e);
+      console.warn("Server payment confirm unavailable, updating local storage", e);
+    }
+
+    if (!confirmed) {
+      try {
+        const localOrders = JSON.parse(localStorage.getItem('ecoareca_local_orders') || '[]');
+        const target = localOrders.find(o => o.id === orderId);
+        if (target) {
+          target.paymentStatus = 'Paid';
+          target.history = target.history || [];
+          target.history.push({
+            fromStatus: 'Pending',
+            toStatus: 'Paid',
+            changedAt: new Date().toISOString(),
+            changedBy: `Admin (${txnRef})`
+          });
+          localStorage.setItem('ecoareca_local_orders', JSON.stringify(localOrders));
+          confirmed = true;
+        }
+      } catch (err) {}
+    }
+
+    if (confirmed) {
+      alert("Đã xác nhận thanh toán thành công cho đơn hàng!");
+      this.viewOrderDetail(orderId);
+      this.loadOrders();
+      this.loadStats();
     }
   }
 
